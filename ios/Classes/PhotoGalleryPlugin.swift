@@ -3,6 +3,7 @@ import MobileCoreServices
 import Flutter
 import UIKit
 import Photos
+import AVFoundation
 
 public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -233,6 +234,10 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
     if start < end {
       for index in start..<end {
         let asset = fetchResult.object(at: index) as PHAsset
+        // Skip iCloud videos that are not available locally
+        if asset.mediaType == .video && !isAssetLocallyAvailable(asset: asset) {
+          continue
+        }
         if(lightWeight == true) {
           items.append(getMediumFromAssetLightWeight(asset: asset))
         } else {
@@ -378,75 +383,120 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
   }
 
   private func getFile(mediumId: String, mimeType: String?, completion: @escaping (String?, Error?) -> Void) {
-    let manager = PHImageManager.default()
+    print("[PhotoGallery] getFile called for mediumId: \(mediumId), mimeType: \(mimeType ?? "null")")
+    
+    DispatchQueue.global(qos: .userInitiated).async {
+      let manager = PHImageManager.default()
 
-    let fetchOptions = PHFetchOptions()
-    if #available(iOS 9, *) {
-      fetchOptions.fetchLimit = 1
-    }
-    let assets: PHFetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [mediumId], options: fetchOptions)
+      let fetchOptions = PHFetchOptions()
+      if #available(iOS 9, *) {
+        fetchOptions.fetchLimit = 1
+      }
+      // Request prefetched properties to avoid main-queue access
+      if #available(iOS 13, *) {
+        fetchOptions.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared, .typeiTunesSynced]
+      }
+      let assets: PHFetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [mediumId], options: fetchOptions)
+      print("[PhotoGallery] Found \(assets.count) assets for mediumId: \(mediumId)")
 
-    if (assets.count > 0) {
-      let asset: PHAsset = assets[0]
-      if(asset.mediaType == PHAssetMediaType.image) {
-        let options = PHImageRequestOptions()
-        options.isSynchronous = false
-        options.version = .current
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
+      if (assets.count > 0) {
+        let asset: PHAsset = assets[0]
+        print("[PhotoGallery] Asset mediaType: \(asset.mediaType.rawValue), size: \(asset.pixelWidth)x\(asset.pixelHeight)")
+        if(asset.mediaType == PHAssetMediaType.image) {
+          print("[PhotoGallery] Processing as image")
+          
+          let options = PHImageRequestOptions()
+          options.isSynchronous = false
+          options.version = .original
+          options.deliveryMode = .highQualityFormat
+          options.isNetworkAccessAllowed = true
 
-        manager.requestImageData(
-          for: asset,
-          options: options,
-          resultHandler: { (data: Data?, uti: String?, orientation, info) in
-            DispatchQueue.main.async(execute: {
-              guard let imageData = data else {
-                completion(nil, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
-                return
-              }
-              guard let assetUTI = uti else {
-                completion(nil, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
-                return
-              }
-              if mimeType != nil {
-                let type = self.extractMimeTypeFromUTI(uti: assetUTI)
-                if type != mimeType {
-                  let path = self.cacheImage(asset: asset, data: imageData, mimeType: mimeType!)
-                  completion(path, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
-                  return
+          let resource = self.bestResource(for: asset)
+          print("[PhotoGallery] Best resource for image: \(resource?.originalFilename ?? "nil")")
+
+          let handleImageData: (Data?, String?) -> Void = { (data, uti) in
+            guard let imageData = data else {
+              if let resource = resource {
+                self.exportResourceToFile(resource: resource, asset: asset, completion: completion)
+              } else {
+                DispatchQueue.main.async {
+                  completion(nil, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
                 }
               }
-              let fileExt = self.extractFileExtensionFromUTI(uti: assetUTI)
-              let filepath = self.exportPathForAsset(asset: asset, ext: fileExt)
-              try! imageData.write(to: filepath, options: .atomic)
-              completion(filepath.absoluteString, nil)
-            })
-          }
-        )
-      } else if(asset.mediaType == PHAssetMediaType.video || asset.mediaType == PHAssetMediaType.audio) {
-        let options = PHVideoRequestOptions()
-        options.version = .current
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
+              return
+            }
 
-        manager.requestAVAsset(
-          forVideo: asset,
-          options: options,
-          resultHandler: { (avAsset, avAudioMix, info) in
-            DispatchQueue.main.async(execute: {
-              do {
-                let avAsset = avAsset as? AVURLAsset
-                let data = try Data(contentsOf: avAsset!.url)
-                let fileExt = self.extractFileExtensionFromAsset(asset: asset)
-                let filepath = self.exportPathForAsset(asset: asset, ext: fileExt)
-                try! data.write(to: filepath, options: .atomic)
-                completion(filepath.absoluteString, nil)
-              } catch {
-                completion(nil, NSError(domain: "photo_gallery", code: 500, userInfo: nil))
+            let fallbackUTI = resource?.uniformTypeIdentifier ?? (kUTTypeJPEG as String)
+            let assetUTI = uti ?? fallbackUTI
+
+            if let requestedMimeType = mimeType {
+              let type = self.extractMimeTypeFromUTI(uti: assetUTI)
+              if type != requestedMimeType {
+                let path = self.cacheImage(asset: asset, data: imageData, mimeType: requestedMimeType)
+                DispatchQueue.main.async {
+                  completion(path, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
+                }
+                return
               }
-            })
+            }
+
+            var fileExt = self.extractFileExtensionFromUTI(uti: assetUTI)
+            if fileExt.isEmpty {
+              fileExt = self.extractFileExtensionFromFilename(filename: resource?.originalFilename)
+            }
+            let filepath = self.exportPathForAsset(asset: asset, ext: fileExt)
+            do {
+              try imageData.write(to: filepath, options: .atomic)
+              DispatchQueue.main.async {
+                completion(filepath.absoluteString, nil)
+              }
+            } catch {
+              DispatchQueue.main.async {
+                completion(nil, error)
+              }
+            }
           }
-        )
+
+          if #available(iOS 13, *) {
+            manager.requestImageDataAndOrientation(
+              for: asset,
+              options: options,
+              resultHandler: { (data: Data?, uti: String?, orientation, info) in
+                handleImageData(data, uti)
+              }
+            )
+          } else {
+            manager.requestImageData(
+              for: asset,
+              options: options,
+              resultHandler: { (data: Data?, uti: String?, orientation, info) in
+                handleImageData(data, uti)
+              }
+            )
+          }
+        } else if(asset.mediaType == PHAssetMediaType.video || asset.mediaType == PHAssetMediaType.audio) {
+          print("[PhotoGallery] Processing as video/audio")
+          guard let resource = self.bestResource(for: asset) else {
+            print("[PhotoGallery] No resource found for video/audio")
+            DispatchQueue.main.async {
+              completion(nil, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
+            }
+            return
+          }
+          print("[PhotoGallery] Found resource: \(resource.originalFilename ?? "unknown"), type: \(resource.type.rawValue)")
+
+          self.exportResourceToFile(resource: resource, asset: asset, completion: completion)
+        } else {
+          print("[PhotoGallery] Unknown media type: \(asset.mediaType.rawValue)")
+          DispatchQueue.main.async {
+            completion(nil, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
+          }
+        }
+      } else {
+        print("[PhotoGallery] Asset not found for mediumId: \(mediumId)")
+        DispatchQueue.main.async {
+          completion(nil, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
+        }
       }
     }
   }
@@ -601,17 +651,50 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
   }
 
   private func extractFileExtensionFromAsset(asset: PHAsset) -> String {
-    let uti = asset.value(forKey: "uniformTypeIdentifier") as? String
+    let uti = self.bestResource(for: asset)?.uniformTypeIdentifier
     return self.extractFileExtensionFromUTI(uti: uti)
   }
 
+  private func extractFileExtensionFromFilename(filename: String?) -> String {
+    guard let filename = filename else {
+      return ""
+    }
+    let ext = (filename as NSString).pathExtension
+    if ext.isEmpty {
+      return ""
+    }
+    return "." + ext
+  }
+
+  private func isAssetLocallyAvailable(asset: PHAsset) -> Bool {
+    // For images, they're generally available
+    if asset.mediaType == .image {
+      return true
+    }
+    
+    // For videos and audio, check if they have local file size
+    // iCloud videos that aren't downloaded won't have a valid file size
+    let resources = PHAssetResource.assetResources(for: asset)
+    guard let resource = resources.first else {
+      return false
+    }
+    
+    // Try to get the file size - if it's nil or 0, the resource might be in iCloud
+    if let fileSize = resource.value(forKey: "fileSize") as? Int64 {
+      return fileSize > 0
+    }
+    
+    // If we can't determine, skip to be safe
+    return false
+  }
+
   private func extractMimeTypeFromAsset(asset: PHAsset) -> String? {
-    let uti = asset.value(forKey: "uniformTypeIdentifier") as? String
+    let uti = self.bestResource(for: asset)?.uniformTypeIdentifier
     return self.extractMimeTypeFromUTI(uti: uti)
   }
 
   private func extractFilenameFromAsset(asset: PHAsset) -> String? {
-    return asset.value(forKey: "originalFilename") as? String
+    return self.bestResource(for: asset)?.originalFilename
   }
 
   private func extractTitleFromFilename(filename: String?) -> String? {
@@ -622,13 +705,184 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
   }
 
   private func extractResourceFromAsset(asset: PHAsset) -> PHAssetResource? {
+    return self.bestResource(for: asset)
+  }
+
+  private func bestResource(for asset: PHAsset) -> PHAssetResource? {
     if #available(iOS 9, *) {
-      let resourceList = PHAssetResource.assetResources(for: asset)
-      if let resource = resourceList.first {
-        return resource
+      let resources = PHAssetResource.assetResources(for: asset)
+      if resources.isEmpty {
+        return nil
       }
+      switch asset.mediaType {
+      case .video:
+        if let resource = resources.first(where: { $0.type == .video || $0.type == .fullSizeVideo }) {
+          return resource
+        }
+      case .audio:
+        if let resource = resources.first(where: { $0.type == .audio }) {
+          return resource
+        }
+      case .image:
+        if let resource = resources.first(where: { $0.type == .photo || $0.type == .fullSizePhoto }) {
+          return resource
+        }
+      default:
+        break
+      }
+      return resources.first
     }
     return nil
+  }
+
+  private func exportResourceToFile(
+    resource: PHAssetResource,
+    asset: PHAsset,
+    completion: @escaping (String?, Error?) -> Void
+  ) {
+    print("[PhotoGallery] exportResourceToFile called for: \(resource.originalFilename ?? "unknown"), UTI: \(resource.uniformTypeIdentifier ?? "nil")")
+    print("[PhotoGallery] Resource type: \(resource.type.rawValue)")
+    print("[PhotoGallery] Asset ID: \(asset.localIdentifier)")
+    
+    var fileExt = self.extractFileExtensionFromUTI(uti: resource.uniformTypeIdentifier)
+    if fileExt.isEmpty {
+      fileExt = self.extractFileExtensionFromFilename(filename: resource.originalFilename)
+    }
+    print("[PhotoGallery] File extension determined: '\(fileExt)'")
+    
+    let filepath = self.exportPathForAsset(asset: asset, ext: fileExt)
+    print("[PhotoGallery] Export filepath: \(filepath.absoluteString)")
+    
+    // Check if directory exists
+    let directory = filepath.deletingLastPathComponent()
+    let dirExists = FileManager.default.fileExists(atPath: directory.path)
+    print("[PhotoGallery] Cache directory exists: \(dirExists)")
+
+    let resourceManager = PHAssetResourceManager.default()
+    let options = PHAssetResourceRequestOptions()
+    options.isNetworkAccessAllowed = true
+    print("[PhotoGallery] PHAssetResourceRequestOptions: isNetworkAccessAllowed=true")
+
+    print("[PhotoGallery] Starting writeData for resource")
+    
+    resourceManager.writeData(
+      for: resource,
+      toFile: filepath,
+      options: options,
+      completionHandler: { (error) in
+        print("[PhotoGallery] writeData completionHandler called")
+        
+        if let error = error {
+          let nsError = error as NSError
+          print("[PhotoGallery] writeData error occurred")
+          print("[PhotoGallery] Error domain: \(nsError.domain)")
+          print("[PhotoGallery] Error code: \(nsError.code)")
+          print("[PhotoGallery] Error description: \(nsError.localizedDescription)")
+          print("[PhotoGallery] Error details: \(nsError.userInfo)")
+          print("[PhotoGallery] Initiating AVAsset fallback")
+          
+          // Try fallback using AVAsset
+          DispatchQueue.global(qos: .userInitiated).async {
+            self.exportVideoUsingAVAsset(asset: asset, filepath: filepath, completion: completion)
+          }
+        } else {
+          print("[PhotoGallery] writeData completed successfully")
+          let fileExists = FileManager.default.fileExists(atPath: filepath.path)
+          print("[PhotoGallery] File exists after writeData: \(fileExists)")
+          
+          if fileExists {
+            do {
+              let fileSize = try FileManager.default.attributesOfItem(atPath: filepath.path)[.size] as? Int64 ?? 0
+              print("[PhotoGallery] File size: \(fileSize) bytes")
+            } catch {
+              print("[PhotoGallery] Failed to get file size: \(error)")
+            }
+          }
+          
+          DispatchQueue.main.async {
+            print("[PhotoGallery] Calling completion with filepath: \(filepath.absoluteString)")
+            completion(filepath.absoluteString, nil)
+          }
+        }
+      }
+    )
+  }
+
+  private func exportVideoUsingAVAsset(asset: PHAsset, filepath: URL, completion: @escaping (String?, Error?) -> Void) {
+    print("[PhotoGallery] Attempting AVAsset fallback export for asset: \(asset.localIdentifier)")
+    print("[PhotoGallery] Target filepath: \(filepath.absoluteString)")
+    
+    PHImageManager.default().requestAVAsset(forVideo: asset, options: nil) { (avAsset, audioMix, info) in
+      print("[PhotoGallery] requestAVAsset callback called")
+      print("[PhotoGallery] avAsset type: \(type(of: avAsset))")
+      print("[PhotoGallery] audioMix: \(audioMix != nil)")
+      print("[PhotoGallery] info keys: \(info?.keys.map { String(describing: $0) } ?? [])")
+      
+      guard let avAsset = avAsset else {
+        print("[PhotoGallery] AVAsset is nil")
+        DispatchQueue.main.async {
+          completion(nil, NSError(domain: "photo_gallery", code: 404, userInfo: nil))
+        }
+        return
+      }
+      
+      guard let avURLAsset = avAsset as? AVURLAsset else {
+        print("[PhotoGallery] AVAsset is not AVURLAsset, type: \(type(of: avAsset))")
+        
+        // Try to extract URL from composition
+        if let composition = avAsset as? AVComposition {
+          print("[PhotoGallery] AVAsset is AVComposition, duration: \(composition.duration.seconds)")
+        }
+        
+        DispatchQueue.main.async {
+          completion(nil, NSError(domain: "photo_gallery", code: 405, userInfo: ["message": "AVAsset is not AVURLAsset"]))
+        }
+        return
+      }
+      
+      print("[PhotoGallery] Got AVURLAsset from: \(avURLAsset.url.absoluteString)")
+      print("[PhotoGallery] Source file exists: \(FileManager.default.fileExists(atPath: avURLAsset.url.path))")
+      
+      do {
+        let sourceSize = try FileManager.default.attributesOfItem(atPath: avURLAsset.url.path)[.size] as? Int64 ?? 0
+        print("[PhotoGallery] Source file size: \(sourceSize) bytes")
+        
+        // Ensure directory exists
+        let directory = filepath.deletingLastPathComponent()
+        print("[PhotoGallery] Ensuring directory exists: \(directory.absoluteString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: nil)
+        print("[PhotoGallery] Directory created/verified")
+        
+        // Remove existing file if present
+        if FileManager.default.fileExists(atPath: filepath.path) {
+          print("[PhotoGallery] Removing existing file at: \(filepath.absoluteString)")
+          try FileManager.default.removeItem(at: filepath)
+        }
+        
+        // Copy the file
+        print("[PhotoGallery] Copying file from: \(avURLAsset.url.absoluteString) to: \(filepath.absoluteString)")
+        try FileManager.default.copyItem(at: avURLAsset.url, to: filepath)
+        
+        let destSize = try FileManager.default.attributesOfItem(atPath: filepath.path)[.size] as? Int64 ?? 0
+        print("[PhotoGallery] Destination file size: \(destSize) bytes")
+        print("[PhotoGallery] AVAsset fallback succeeded")
+        
+        DispatchQueue.main.async {
+          completion(filepath.absoluteString, nil)
+        }
+      } catch {
+        let nsError = error as NSError
+        print("[PhotoGallery] AVAsset fallback copy failed")
+        print("[PhotoGallery] Error domain: \(nsError.domain)")
+        print("[PhotoGallery] Error code: \(nsError.code)")
+        print("[PhotoGallery] Error description: \(nsError.localizedDescription)")
+        print("[PhotoGallery] Error details: \(nsError.userInfo)")
+        
+        DispatchQueue.main.async {
+          completion(nil, error)
+        }
+      }
+    }
   }
 
   private func extractSizeFromResource(resource: PHAssetResource?) -> Int64? {
@@ -641,7 +895,13 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
   private func cachePath() -> URL {
     let paths = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
     let cacheFolder = paths[0].appendingPathComponent("photo_gallery")
-    try! FileManager.default.createDirectory(at: cacheFolder, withIntermediateDirectories: true, attributes: nil)
+    print("[PhotoGallery] Cache folder path: \(cacheFolder.absoluteString)")
+    do {
+      try FileManager.default.createDirectory(at: cacheFolder, withIntermediateDirectories: true, attributes: nil)
+      print("[PhotoGallery] Cache folder created/verified successfully")
+    } catch {
+      print("[PhotoGallery] Failed to create cache folder: \(error)")
+    }
     return cacheFolder
   }
 
