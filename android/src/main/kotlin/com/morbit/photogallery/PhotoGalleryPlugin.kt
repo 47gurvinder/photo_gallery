@@ -9,7 +9,10 @@ import android.database.Cursor
 import android.database.Cursor.FIELD_TYPE_INTEGER
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.util.Size
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -22,6 +25,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.util.Collections
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -29,6 +33,8 @@ import java.util.concurrent.Executors
 /** PhotoGalleryPlugin */
 class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     companion object {
+        const val DEFAULT_PAGE_SIZE = 60
+
         // This static function is optional and equivalent to onAttachedToEngine. It supports the old
         // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
         // plugin registration via this function while apps migrate to use the new Android APIs
@@ -94,8 +100,9 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
     private var activity: Activity? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val executor: ExecutorService = Executors.newFixedThreadPool(4)
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, "photo_gallery")
@@ -106,6 +113,7 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        executor.shutdown()
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -128,10 +136,8 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         when (call.method) {
             "listAlbums" -> {
                 val mediumType = call.argument<String>("mediumType")
-                executor.submit {
-                    result.success(
-                        listAlbums(mediumType)
-                    )
+                executeInBackground(result) {
+                    listAlbums(mediumType)
                 }
             }
 
@@ -142,20 +148,24 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 val skip = call.argument<Int>("skip")
                 val take = call.argument<Int>("take")
                 val lightWeight = call.argument<Boolean>("lightWeight")
-                executor.submit {
-                    result.success(
-                        listMedia(mediumType, albumId!!, newest!!, skip, take, lightWeight)
-                    )
+                if (albumId == null || newest == null) {
+                    result.error("invalid_args", "albumId and newest are required", null)
+                    return
+                }
+                executeInBackground(result) {
+                    listMedia(mediumType, albumId, newest, skip, take, lightWeight)
                 }
             }
 
             "getMedium" -> {
                 val mediumId = call.argument<String>("mediumId")
                 val mediumType = call.argument<String>("mediumType")
-                executor.submit {
-                    result.success(
-                        getMedium(mediumId!!, mediumType)
-                    )
+                if (mediumId == null) {
+                    result.error("invalid_args", "mediumId is required", null)
+                    return
+                }
+                executeInBackground(result) {
+                    getMedium(mediumId, mediumType)
                 }
             }
 
@@ -165,10 +175,12 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 val width = call.argument<Int>("width")
                 val height = call.argument<Int>("height")
                 val highQuality = call.argument<Boolean>("highQuality")
-                executor.submit {
-                    result.success(
-                        getThumbnail(mediumId!!, mediumType, width, height, highQuality)
-                    )
+                if (mediumId == null) {
+                    result.error("invalid_args", "mediumId is required", null)
+                    return
+                }
+                executeInBackground(result) {
+                    getThumbnail(mediumId, mediumType, width, height, highQuality)
                 }
             }
 
@@ -179,10 +191,12 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 val width = call.argument<Int>("width")
                 val height = call.argument<Int>("height")
                 val highQuality = call.argument<Boolean>("highQuality")
-                executor.submit {
-                    result.success(
-                        getAlbumThumbnail(albumId!!, mediumType, newest!!, width, height, highQuality)
-                    )
+                if (albumId == null || newest == null) {
+                    result.error("invalid_args", "albumId and newest are required", null)
+                    return
+                }
+                executeInBackground(result) {
+                    getAlbumThumbnail(albumId, mediumType, newest, width, height, highQuality)
                 }
             }
 
@@ -190,32 +204,55 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 val mediumId = call.argument<String>("mediumId")
                 val mediumType = call.argument<String>("mediumType")
                 val mimeType = call.argument<String>("mimeType")
-                executor.submit {
-                    result.success(
-                        getFile(mediumId!!, mediumType, mimeType)
-                    )
+                if (mediumId == null) {
+                    result.error("invalid_args", "mediumId is required", null)
+                    return
+                }
+                executeInBackground(result) {
+                    getFile(mediumId, mediumType, mimeType)
                 }
             }
 
             "deleteMedium" -> {
                 val mediumId = call.argument<String>("mediumId")
                 val mediumType = call.argument<String>("mediumType")
-                executor.submit {
-                    result.success(
-                        deleteMedium(mediumId!!, mediumType)
-                    )
+                if (mediumId == null) {
+                    result.error("invalid_args", "mediumId is required", null)
+                    return
+                }
+                executeInBackground(result) {
+                    deleteMedium(mediumId, mediumType)
+                    null
                 }
             }
 
             "cleanCache" -> {
-                executor.submit {
-                    result.success(
-                        cleanCache()
-                    )
+                executeInBackground(result) {
+                    cleanCache()
+                    null
                 }
             }
 
             else -> result.notImplemented()
+        }
+    }
+
+    private fun executeInBackground(result: Result, task: () -> Any?) {
+        executor.submit {
+            try {
+                val value = task()
+                mainHandler.post {
+                    result.success(value)
+                }
+            } catch (e: IllegalArgumentException) {
+                mainHandler.post {
+                    result.error("invalid_args", e.message, null)
+                }
+            } catch (e: Exception) {
+                mainHandler.post {
+                    result.error("photo_gallery_error", e.message, null)
+                }
+            }
         }
     }
 
@@ -368,22 +405,23 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
 
             else -> {
-                val images = listImages(albumId, newest, null, null, lightWeight)["items"] as List<Map<String, Any?>>
-                val videos = listVideos(albumId, newest, null, null, lightWeight)["items"] as List<Map<String, Any?>>
+                val start = skip ?: 0
+                val requested = take ?: DEFAULT_PAGE_SIZE
+                val fetchLimit = start + requested
+                val images = listImages(albumId, newest, 0, fetchLimit, lightWeight)["items"] as List<Map<String, Any?>>
+                val videos = listVideos(albumId, newest, 0, fetchLimit, lightWeight)["items"] as List<Map<String, Any?>>
                 val comparator = compareBy<Map<String, Any?>> { it["creationDate"] as Long }
                     .thenBy { it["modifiedDate"] as Long }
                 var items = (images + videos).sortedWith(comparator)
                 if (newest) {
                     items = items.reversed()
                 }
-                if (skip != null || take != null) {
-                    val start = skip ?: 0
-                    val total = items.size
-                    val end = if (take == null) total else Integer.min(start + take, total)
-                    items = items.subList(start, end)
+                if (start > 0 || requested < items.size) {
+                    val end = Integer.min(start + requested, items.size)
+                    items = if (start >= end) emptyList() else items.subList(start, end)
                 }
                 mapOf(
-                    "start" to (skip ?: 0),
+                    "start" to start,
                     "items" to items
                 )
             }
@@ -551,7 +589,7 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
         bitmap?.run {
             ByteArrayOutputStream().use { stream ->
-                this.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+                this.compress(Bitmap.CompressFormat.JPEG, 85, stream)
                 byteArray = stream.toByteArray()
             }
         }
@@ -587,7 +625,7 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
         bitmap?.run {
             ByteArrayOutputStream().use { stream ->
-                this.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+                this.compress(Bitmap.CompressFormat.JPEG, 85, stream)
                 byteArray = stream.toByteArray()
             }
         }
@@ -867,55 +905,91 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private fun getImageFile(mediumId: String, mimeType: String? = null): String? {
         return this.context.run {
+            val mediumUri = ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, mediumId.toLong())
             mimeType?.let {
-                val type = this.contentResolver.getType(
-                    ContentUris.withAppendedId(
-                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        mediumId.toLong()
-                    )
-                )
+                val type = this.contentResolver.getType(mediumUri)
                 if (it != type) {
                     return@run cacheImage(mediumId, it)
                 }
             }
 
-            val imageCursor = this.contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.Images.Media.DATA),
-                "${MediaStore.Images.Media._ID} = ?",
-                arrayOf(mediumId),
-                null
-            )
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                val imageCursor = this.contentResolver.query(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Images.Media.DATA),
+                    "${MediaStore.Images.Media._ID} = ?",
+                    arrayOf(mediumId),
+                    null
+                )
 
-            imageCursor?.use { cursor ->
-                if (cursor.moveToNext()) {
-                    val dataColumn = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
-                    return@run cursor.getString(dataColumn)
+                imageCursor?.use { cursor ->
+                    if (cursor.moveToNext()) {
+                        val dataColumn = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                        if (dataColumn >= 0) {
+                            return@run cursor.getString(dataColumn)
+                        }
+                    }
                 }
             }
 
-            return@run null
+            return@run cacheMediumFromUri(mediumUri, mediumId, this.contentResolver.getType(mediumUri))
         }
     }
 
     private fun getVideoFile(mediumId: String): String? {
         return this.context.run {
-            val videoCursor = this.contentResolver.query(
-                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                arrayOf(MediaStore.Video.Media.DATA),
-                "${MediaStore.Video.Media._ID} = ?",
-                arrayOf(mediumId),
-                null
-            )
+            val mediumUri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, mediumId.toLong())
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                val videoCursor = this.contentResolver.query(
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Video.Media.DATA),
+                    "${MediaStore.Video.Media._ID} = ?",
+                    arrayOf(mediumId),
+                    null
+                )
 
-            videoCursor?.use { cursor ->
-                if (cursor.moveToNext()) {
-                    val dataColumn = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
-                    return@run cursor.getString(dataColumn)
+                videoCursor?.use { cursor ->
+                    if (cursor.moveToNext()) {
+                        val dataColumn = cursor.getColumnIndex(MediaStore.Video.Media.DATA)
+                        if (dataColumn >= 0) {
+                            return@run cursor.getString(dataColumn)
+                        }
+                    }
                 }
             }
 
-            return@run null
+            return@run cacheMediumFromUri(mediumUri, mediumId, this.contentResolver.getType(mediumUri))
+        }
+    }
+
+    private fun cacheMediumFromUri(uri: Uri, mediumId: String, mimeType: String?): String? {
+        val extension = extensionFromMimeType(mimeType)
+        val path = File(getCachePath(), "$mediumId.$extension")
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                FileOutputStream(path).use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+            } ?: return null
+            path.absolutePath
+        } catch (e: IOException) {
+            null
+        }
+    }
+
+    private fun extensionFromMimeType(mimeType: String?): String {
+        return when (mimeType) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            "video/mp4" -> "mp4"
+            "video/quicktime" -> "mov"
+            else -> {
+                when {
+                    mimeType?.startsWith("video/") == true -> "mp4"
+                    mimeType?.startsWith("image/") == true -> "jpg"
+                    else -> "bin"
+                }
+            }
         }
     }
 
@@ -945,29 +1019,32 @@ class PhotoGalleryPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             when (mimeType) {
                 "image/jpeg" -> {
                     val path = File(getCachePath(), "$mediumId.jpeg")
-                    val out = FileOutputStream(path)
                     compressFormat = Bitmap.CompressFormat.JPEG
-                    it.compress(compressFormat, 100, out)
+                    FileOutputStream(path).use { out ->
+                        it.compress(compressFormat, 100, out)
+                    }
                     path.absolutePath
                 }
 
                 "image/png" -> {
                     val path = File(getCachePath(), "$mediumId.png")
-                    val out = FileOutputStream(path)
                     compressFormat = Bitmap.CompressFormat.PNG
-                    it.compress(compressFormat, 100, out)
+                    FileOutputStream(path).use { out ->
+                        it.compress(compressFormat, 100, out)
+                    }
                     path.absolutePath
                 }
 
                 "image/webp" -> {
                     val path = File(getCachePath(), "$mediumId.webp")
-                    val out = FileOutputStream(path)
                     compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         Bitmap.CompressFormat.WEBP_LOSSLESS
                     } else {
                         Bitmap.CompressFormat.WEBP
                     }
-                    it.compress(compressFormat, 100, out)
+                    FileOutputStream(path).use { out ->
+                        it.compress(compressFormat, 100, out)
+                    }
                     path.absolutePath
                 }
 

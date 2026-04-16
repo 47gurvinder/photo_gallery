@@ -69,11 +69,21 @@ class ThumbnailProvider extends ImageProvider<ThumbnailProvider> {
   bool operator ==(Object other) {
     if (other.runtimeType != runtimeType) return false;
     final typedOther = other as ThumbnailProvider;
-    return mediumId == typedOther.mediumId;
+    return mediumId == typedOther.mediumId &&
+        mediumType == typedOther.mediumType &&
+        height == typedOther.height &&
+        width == typedOther.width &&
+        highQuality == typedOther.highQuality;
   }
 
   @override
-  int get hashCode => mediumId.hashCode;
+  int get hashCode => Object.hash(
+        mediumId,
+        mediumType,
+        height,
+        width,
+        highQuality,
+      );
 
   @override
   String toString() => '$runtimeType("$mediumId")';

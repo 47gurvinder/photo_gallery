@@ -1,3 +1,13 @@
+# 2.2.2
+
+Improve iOS video handling and iCloud asset support.
+
+Refactor Android plugin to use a fixed thread pool and dispatch results on the main handler.
+
+Add null-safety argument validation in Android method call handler.
+
+Update example app configuration and dependencies.
+
 # 2.2.1
 
 Upgrade ```flutter_lints``` dependency, and then lint code according to the ```public_member_api_docs``` and ```use_string_in_part_of_directives``` rule.

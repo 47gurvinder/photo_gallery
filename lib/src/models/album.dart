@@ -30,13 +30,13 @@ class Album {
   /// list media in the album.
   ///
   /// Pagination can be controlled out of [skip] (defaults to `0`) and
-  /// [take] (defaults to `<total>`).
+  /// [take] (defaults to [PhotoGallery.defaultPageSize]).
   Future<MediaPage> listMedia({
     int? skip,
     int? take,
     bool? lightWeight,
   }) {
-    return PhotoGallery._listMedia(
+    return PhotoGallery.listMedia(
       album: this,
       skip: skip,
       take: take,

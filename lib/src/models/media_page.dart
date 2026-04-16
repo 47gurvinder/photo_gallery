@@ -29,7 +29,7 @@ class MediaPage {
   /// Gets the next page of media in the album.
   Future<MediaPage> nextPage() {
     assert(!isLast);
-    return PhotoGallery._listMedia(
+    return PhotoGallery.listMedia(
       album: album,
       skip: end,
       take: items.length,

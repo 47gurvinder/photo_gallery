@@ -30,10 +30,19 @@ class PhotoProvider extends ImageProvider<PhotoProvider> {
     ImageDecoderCallback decode,
   ) async {
     assert(key == this);
-    final file = await PhotoGallery.getFile(
-        mediumId: mediumId, mediumType: MediumType.image, mimeType: mimeType);
-    ui.ImmutableBuffer buffer =
-        await ui.ImmutableBuffer.fromFilePath(file.path);
+    late ui.ImmutableBuffer buffer;
+    try {
+      final file = await PhotoGallery.getFile(
+        mediumId: mediumId,
+        mediumType: MediumType.image,
+        mimeType: mimeType,
+      );
+      buffer = await ui.ImmutableBuffer.fromFilePath(file.path);
+    } catch (e) {
+      buffer = await ui.ImmutableBuffer.fromAsset(
+        "packages/photo_gallery/images/grey.bmp",
+      );
+    }
     return decode(buffer);
   }
 
@@ -46,11 +55,11 @@ class PhotoProvider extends ImageProvider<PhotoProvider> {
   bool operator ==(Object other) {
     if (other.runtimeType != runtimeType) return false;
     final typedOther = other as PhotoProvider;
-    return mediumId == typedOther.mediumId;
+    return mediumId == typedOther.mediumId && mimeType == typedOther.mimeType;
   }
 
   @override
-  int get hashCode => mediumId.hashCode;
+  int get hashCode => Object.hash(mediumId, mimeType);
 
   @override
   String toString() => '$runtimeType("$mediumId")';

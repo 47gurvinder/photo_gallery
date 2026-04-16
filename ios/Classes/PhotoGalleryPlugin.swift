@@ -17,7 +17,10 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
       let arguments = call.arguments as! Dictionary<String, AnyObject>
       let mediumType = arguments["mediumType"] as? String
       let hideIfEmpty = arguments["hideIfEmpty"] as? Bool
-      result(listAlbums(mediumType: mediumType, hideIfEmpty: hideIfEmpty))
+      let approximateCount = arguments["approximateCount"] as? Bool
+      runInBackground(result: result) {
+        self.listAlbums(mediumType: mediumType, hideIfEmpty: hideIfEmpty, approximateCount: approximateCount)
+      }
     }
     else if(call.method == "listMedia") {
       let arguments = call.arguments as! Dictionary<String, AnyObject>
@@ -27,23 +30,26 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
       let skip = arguments["skip"] as? NSNumber
       let take = arguments["take"] as? NSNumber
       let lightWeight = arguments["lightWeight"] as? Bool
-      result(listMedia(
-        albumId: albumId,
-        mediumType: mediumType,
-        newest: newest,
-        skip: skip,
-        take: take,
-        lightWeight: lightWeight
-      ))
+      runInBackground(result: result) {
+        self.listMedia(
+          albumId: albumId,
+          mediumType: mediumType,
+          newest: newest,
+          skip: skip,
+          take: take,
+          lightWeight: lightWeight
+        )
+      }
     }
     else if(call.method == "getMedium") {
       let arguments = call.arguments as! Dictionary<String, AnyObject>
       let mediumId = arguments["mediumId"] as! String
-      do {
-        let medium = try getMedium(mediumId: mediumId)
-        result(medium)
-      } catch {
-        result(nil)
+      runInBackground(result: result) {
+        do {
+          return try self.getMedium(mediumId: mediumId)
+        } catch {
+          return nil
+        }
       }
     }
     else if(call.method == "getThumbnail") {
@@ -113,9 +119,18 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
     }
   }
 
+  private func runInBackground(result: @escaping FlutterResult, task: @escaping () -> Any?) {
+    DispatchQueue.global(qos: .userInitiated).async {
+      let value = task()
+      DispatchQueue.main.async {
+        result(value)
+      }
+    }
+  }
+
   private var assetCollections: [PHAssetCollection] = []
 
-  private func listAlbums(mediumType: String?, hideIfEmpty: Bool? = true) -> [[String: Any?]] {
+  private func listAlbums(mediumType: String?, hideIfEmpty: Bool? = true, approximateCount: Bool? = false) -> [[String: Any?]] {
     self.assetCollections = []
     let fetchOptions = PHFetchOptions()
     if #available(iOS 9, *) {
@@ -133,7 +148,19 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
       guard !albumIds.contains(albumId) else { return }
       albumIds.insert(albumId)
 
-      let count = countMedia(collection: collection, mediumType: mediumType)
+      let count: Int
+      if approximateCount == true {
+        let estimated = collection.estimatedAssetCount
+        if estimated == NSNotFound {
+          // Fast fallback for collections without estimated count: only check
+          // whether there is at least one matching asset.
+          count = hasAnyMedia(collection: collection, mediumType: mediumType) ? 1 : 0
+        } else {
+          count = estimated
+        }
+      } else {
+        count = countMedia(collection: collection, mediumType: mediumType)
+      }
       if(count > 0 || !hideIfEmpty) {
         self.assetCollections.append(collection)
         albums.append([
@@ -198,6 +225,20 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
     return PHAsset.fetchAssets(in: collection ?? PHAssetCollection.init(), options: options).count
   }
 
+  private func hasAnyMedia(collection: PHAssetCollection?, mediumType: String?) -> Bool {
+    let options = PHFetchOptions()
+    options.predicate = self.predicateFromMediumType(mediumType: mediumType)
+    if #available(iOS 9, *) {
+      options.fetchLimit = 1
+    }
+
+    if collection == nil {
+      return PHAsset.fetchAssets(with: options).count > 0
+    }
+
+    return PHAsset.fetchAssets(in: collection ?? PHAssetCollection.init(), options: options).count > 0
+  }
+
   private func listMedia(
     albumId: String,
     mediumType: String?,
@@ -215,7 +256,7 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
 
     let collection = self.assetCollections.first(where: { (collection) -> Bool in
       collection.localIdentifier == albumId
-    })
+    }) ?? self.fetchCollectionById(albumId)
 
     let fetchResult: PHFetchResult<PHAsset>
     if(albumId == "__ALL__") {
@@ -226,13 +267,13 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
         options: fetchOptions
       )
     }
-    let start = skip?.intValue ?? 0
+    let start = max(skip?.intValue ?? 0, 0)
     let total = fetchResult.count
-    let end = take == nil ? total : min(start + take!.intValue, total)
+    let pageSize = max(take?.intValue ?? total, 0)
     var items = [[String: Any?]]()
 
-    if start < end {
-      for index in start..<end {
+    if start < total {
+      for index in start..<total {
         let asset = fetchResult.object(at: index) as PHAsset
         // Skip iCloud videos that are not available locally
         if asset.mediaType == .video && !isAssetLocallyAvailable(asset: asset) {
@@ -242,6 +283,9 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
           items.append(getMediumFromAssetLightWeight(asset: asset))
         } else {
           items.append(getMediumFromAsset(asset: asset))
+        }
+        if pageSize > 0 && items.count >= pageSize {
+          break
         }
       }
     }
@@ -339,7 +383,7 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
 
    if albumId == "__ALL__" {
        assets = PHAsset.fetchAssets(with: fetchOptions)
-   } else if let collection = self.assetCollections.first(where: { $0.localIdentifier == albumId }) {
+       } else if let collection = self.assetCollections.first(where: { $0.localIdentifier == albumId }) ?? self.fetchCollectionById(albumId) {
        assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
    } else {
        // Handle the case where the collection is nil
@@ -504,17 +548,37 @@ public class PhotoGalleryPlugin: NSObject, FlutterPlugin {
   private func cacheImage(asset: PHAsset, data: Data, mimeType: String) -> String? {
     if mimeType == "image/jpeg" {
       let filepath = self.exportPathForAsset(asset: asset, ext: ".jpeg")
-      let uiImage = UIImage(data: data)
-      try! uiImage?.jpegData(compressionQuality: 100)?.write(to: filepath, options: .atomic)
-      return filepath.absoluteString
+      guard let imageData = UIImage(data: data)?.jpegData(compressionQuality: 100) else {
+        return nil
+      }
+      do {
+        try imageData.write(to: filepath, options: .atomic)
+        return filepath.absoluteString
+      } catch {
+        return nil
+      }
     } else if mimeType == "image/png" {
       let filepath = self.exportPathForAsset(asset: asset, ext: ".png")
-      let uiImage = UIImage(data: data)
-      try! uiImage?.pngData()?.write(to: filepath, options: .atomic)
-      return filepath.absoluteString
+      guard let imageData = UIImage(data: data)?.pngData() else {
+        return nil
+      }
+      do {
+        try imageData.write(to: filepath, options: .atomic)
+        return filepath.absoluteString
+      } catch {
+        return nil
+      }
     } else {
       return nil
     }
+  }
+
+  private func fetchCollectionById(_ albumId: String) -> PHAssetCollection? {
+    let fetchedCollections = PHAssetCollection.fetchAssetCollections(
+      withLocalIdentifiers: [albumId],
+      options: nil
+    )
+    return fetchedCollections.firstObject
   }
 
   private func getMediumFromAsset(asset: PHAsset) -> [String: Any?] {

@@ -17,6 +17,7 @@ part 'src/models/medium.dart';
 /// Accessing the native photo gallery.
 class PhotoGallery {
   static const MethodChannel _channel = MethodChannel('photo_gallery');
+  static const int defaultPageSize = 60;
 
   /// List all available gallery albums and counts number of items of [MediumType].
   /// mediumType: medium type of albums
@@ -26,11 +27,13 @@ class PhotoGallery {
     MediumType? mediumType,
     bool newest = true,
     bool hideIfEmpty = true,
+      bool approximateCount = false,
   }) async {
     final json = await _channel.invokeMethod('listAlbums', {
       'mediumType': mediumTypeToJson(mediumType),
       'hideIfEmpty': hideIfEmpty,
       'newest': newest,
+        'approximateCount': approximateCount,
     });
     return json
         .map<Album>((album) => Album.fromJson(album, mediumType, newest))
@@ -40,9 +43,9 @@ class PhotoGallery {
   /// List all available media in a specific album, support pagination of media
   /// album: the album to list media
   /// skip: the number to skip when list media
-  /// take: the number to return when list media
+  /// take: the number to return when list media, defaults to [defaultPageSize]
   /// lightWeight: whether to return brief information when list media
-  static Future<MediaPage> _listMedia({
+  static Future<MediaPage> listMedia({
     required Album album,
     int? skip,
     int? take,
@@ -53,10 +56,10 @@ class PhotoGallery {
       'mediumType': mediumTypeToJson(album.mediumType),
       'newest': album.newest,
       'skip': skip,
-      'take': take,
+      'take': take ?? defaultPageSize,
       'lightWeight': lightWeight,
     });
-    return MediaPage.fromJson(album, json);
+    return MediaPage.fromJson(album, json, lightWeight: lightWeight);
   }
 
   /// Get medium metadata by medium id
@@ -154,6 +157,6 @@ class PhotoGallery {
 
   /// Clean medium file cache
   static Future<void> cleanCache() async {
-    _channel.invokeMethod('cleanCache', {});
+    await _channel.invokeMethod('cleanCache', {});
   }
 }

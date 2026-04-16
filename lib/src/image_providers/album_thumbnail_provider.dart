@@ -66,11 +66,19 @@ class AlbumThumbnailProvider extends ImageProvider<AlbumThumbnailProvider> {
   bool operator ==(Object other) {
     if (other.runtimeType != runtimeType) return false;
     final typedOther = other as AlbumThumbnailProvider;
-    return album.id == typedOther.album.id;
+    return album.id == typedOther.album.id &&
+        height == typedOther.height &&
+        width == typedOther.width &&
+        highQuality == typedOther.highQuality;
   }
 
   @override
-  int get hashCode => album.id.hashCode;
+  int get hashCode => Object.hash(
+        album.id,
+        height,
+        width,
+        highQuality,
+      );
 
   @override
   String toString() => '$runtimeType("${album.id}")';
