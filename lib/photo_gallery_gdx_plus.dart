@@ -14,26 +14,28 @@ part 'src/models/album.dart';
 part 'src/models/media_page.dart';
 part 'src/models/medium.dart';
 
-/// Accessing the native photo gallery.
+/// Provides access to the native photo gallery.
 class PhotoGallery {
   static const MethodChannel _channel = MethodChannel('photo_gallery');
+
+  /// Default number of media items returned in one page.
   static const int defaultPageSize = 60;
 
-  /// List all available gallery albums and counts number of items of [MediumType].
-  /// mediumType: medium type of albums
-  /// newest: whether to sort media by latest date in albums
-  /// hideIfEmpty: whether to hide empty albums, only available on iOS
+  /// Lists available gallery albums and counts their [MediumType] items.
+  ///
+  /// [newest] controls the album sort direction. [hideIfEmpty] is available on
+  /// iOS. On iOS, [approximateCount] can avoid calculating exact album counts.
   static Future<List<Album>> listAlbums({
     MediumType? mediumType,
     bool newest = true,
     bool hideIfEmpty = true,
-      bool approximateCount = false,
+    bool approximateCount = false,
   }) async {
     final json = await _channel.invokeMethod('listAlbums', {
       'mediumType': mediumTypeToJson(mediumType),
       'hideIfEmpty': hideIfEmpty,
       'newest': newest,
-        'approximateCount': approximateCount,
+      'approximateCount': approximateCount,
     });
     return json
         .map<Album>((album) => Album.fromJson(album, mediumType, newest))
@@ -133,11 +135,13 @@ class PhotoGallery {
     MediumType? mediumType,
     String? mimeType,
   }) async {
-    final path = await _channel.invokeMethod('getFile', {
-      'mediumId': mediumId,
-      'mediumType': mediumTypeToJson(mediumType),
-      'mimeType': mimeType,
-    }) as String?;
+    final path =
+        await _channel.invokeMethod('getFile', {
+              'mediumId': mediumId,
+              'mediumType': mediumTypeToJson(mediumType),
+              'mimeType': mimeType,
+            })
+            as String?;
     if (path == null) throw "Cannot get file $mediumId with type $mimeType";
     return File(path);
   }

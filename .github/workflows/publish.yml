@@ -29,6 +29,12 @@ jobs:
       # Minimal package setup and dry run checks.
       - name: Install dependencies
         run: flutter pub get
+      - name: Check formatting
+        run: dart format --set-exit-if-changed lib test example/lib
+      - name: Analyze
+        run: flutter analyze
+      - name: Run tests
+        run: flutter test
       # Publish package with dry run
       - name: Publish dry run
         run: flutter pub publish --dry-run

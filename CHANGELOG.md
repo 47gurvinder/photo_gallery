@@ -1,3 +1,10 @@
+# 2.3.0
+
+- Publish the maintained continuation under the `photo_gallery_gdx_plus` package name. Applications must update their dependency and import path.
+- Move ongoing maintenance, issue tracking, and contributions to `47gurvinder/photo_gallery` while preserving the original project history and BSD 3-Clause license.
+- Require Flutter 3.44/Dart 3.12 or newer, Android API 24+, and iOS 13+.
+- Update the Android toolchain to compile SDK 36, Android Gradle Plugin 9.0.1, Gradle 9.1, Kotlin 2.3.20, and Java 17 compatibility.
+
 # 2.2.2
 
 Improve iOS video handling and iCloud asset support.

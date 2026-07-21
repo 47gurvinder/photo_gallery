@@ -1,34 +1,21 @@
 PODS:
   - Flutter (1.0.0)
-  - permission_handler_apple (9.1.1):
+  - photo_gallery_gdx_plus (2.3.0):
     - Flutter
-  - photo_gallery (0.0.1):
-    - Flutter
-  - video_player_avfoundation (0.0.1):
-    - Flutter
-    - FlutterMacOS
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
-  - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
-  - photo_gallery (from `.symlinks/plugins/photo_gallery/ios`)
-  - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
+  - photo_gallery_gdx_plus (from `.symlinks/plugins/photo_gallery_gdx_plus/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
-  permission_handler_apple:
-    :path: ".symlinks/plugins/permission_handler_apple/ios"
-  photo_gallery:
-    :path: ".symlinks/plugins/photo_gallery/ios"
-  video_player_avfoundation:
-    :path: ".symlinks/plugins/video_player_avfoundation/darwin"
+  photo_gallery_gdx_plus:
+    :path: ".symlinks/plugins/photo_gallery_gdx_plus/ios"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  permission_handler_apple: e76247795d700c14ea09e3a2d8855d41ee80a2e6
-  photo_gallery: 9f95e57747cd22c10676ece3660d1ffe6c603ee5
-  video_player_avfoundation: 02011213dab73ae3687df27ce441fbbcc82b5579
+  photo_gallery_gdx_plus: d727bab1cb1b62cb443853d5a9a9a1122b7b86ff
 
 PODFILE CHECKSUM: edebe6e8ef6d1f09fdf52ec8267e044576ae5304
 

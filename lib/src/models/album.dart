@@ -1,4 +1,4 @@
-part of '../../photo_gallery.dart';
+part of '../../photo_gallery_gdx_plus.dart';
 
 /// A album in the gallery.
 @immutable
@@ -23,19 +23,15 @@ class Album {
 
   /// Creates a album from platform channel protocol.
   Album.fromJson(dynamic json, this.mediumType, this.newest)
-      : id = json['id'],
-        name = json['name'],
-        count = json['count'] ?? 0;
+    : id = json['id'],
+      name = json['name'],
+      count = json['count'] ?? 0;
 
   /// list media in the album.
   ///
   /// Pagination can be controlled out of [skip] (defaults to `0`) and
   /// [take] (defaults to [PhotoGallery.defaultPageSize]).
-  Future<MediaPage> listMedia({
-    int? skip,
-    int? take,
-    bool? lightWeight,
-  }) {
+  Future<MediaPage> listMedia({int? skip, int? take, bool? lightWeight}) {
     return PhotoGallery.listMedia(
       album: this,
       skip: skip,

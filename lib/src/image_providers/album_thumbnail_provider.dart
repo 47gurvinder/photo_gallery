@@ -1,4 +1,4 @@
-part of '../../photo_gallery.dart';
+part of '../../photo_gallery_gdx_plus.dart';
 
 /// Fetches the given album thumbnail from the gallery.
 class AlbumThumbnailProvider extends ImageProvider<AlbumThumbnailProvider> {
@@ -51,7 +51,7 @@ class AlbumThumbnailProvider extends ImageProvider<AlbumThumbnailProvider> {
       buffer = await ui.ImmutableBuffer.fromUint8List(Uint8List.fromList(data));
     } catch (e) {
       buffer = await ui.ImmutableBuffer.fromAsset(
-        "packages/photo_gallery/images/grey.bmp",
+        "packages/photo_gallery_gdx_plus/images/grey.bmp",
       );
     }
     return decode(buffer);
@@ -73,12 +73,7 @@ class AlbumThumbnailProvider extends ImageProvider<AlbumThumbnailProvider> {
   }
 
   @override
-  int get hashCode => Object.hash(
-        album.id,
-        height,
-        width,
-        highQuality,
-      );
+  int get hashCode => Object.hash(album.id, height, width, highQuality);
 
   @override
   String toString() => '$runtimeType("${album.id}")';

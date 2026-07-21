@@ -1,20 +1,22 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:photo_gallery/photo_gallery.dart';
+import 'package:photo_gallery_gdx_plus/photo_gallery_gdx_plus.dart';
 import 'package:transparent_image/transparent_image.dart';
 import 'package:video_player/video_player.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 /// The main widget of example app
 class MyApp extends StatefulWidget {
+  /// Creates the example application.
+  const MyApp({super.key});
+
   @override
-  _MyAppState createState() => _MyAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -62,13 +64,9 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Photo gallery example'),
-        ),
+        appBar: AppBar(title: const Text('Photo gallery example')),
         body: _loading
-            ? Center(
-                child: CircularProgressIndicator(),
-              )
+            ? Center(child: CircularProgressIndicator())
             : LayoutBuilder(
                 builder: (context, constraints) {
                   double gridWidth = (constraints.maxWidth - 20) / 3;
@@ -99,8 +97,9 @@ class _MyAppState extends State<MyApp> {
                                     width: gridWidth,
                                     child: FadeInImage(
                                       fit: BoxFit.cover,
-                                      placeholder:
-                                          MemoryImage(kTransparentImage),
+                                      placeholder: MemoryImage(
+                                        kTransparentImage,
+                                      ),
                                       image: AlbumThumbnailProvider(
                                         album: album,
                                         highQuality: true,
@@ -115,10 +114,7 @@ class _MyAppState extends State<MyApp> {
                                     album.name ?? "Unnamed Album",
                                     maxLines: 1,
                                     textAlign: TextAlign.start,
-                                    style: TextStyle(
-                                      height: 1.2,
-                                      fontSize: 16,
-                                    ),
+                                    style: TextStyle(height: 1.2, fontSize: 16),
                                   ),
                                 ),
                                 Container(
@@ -127,10 +123,7 @@ class _MyAppState extends State<MyApp> {
                                   child: Text(
                                     album.count.toString(),
                                     textAlign: TextAlign.start,
-                                    style: TextStyle(
-                                      height: 1.2,
-                                      fontSize: 12,
-                                    ),
+                                    style: TextStyle(height: 1.2, fontSize: 12),
                                   ),
                                 ),
                               ],
@@ -153,7 +146,7 @@ class AlbumPage extends StatefulWidget {
   final Album album;
 
   /// The constructor of AlbumPage
-  AlbumPage(Album album) : album = album;
+  const AlbumPage(this.album, {super.key});
 
   @override
   State<StatefulWidget> createState() => _AlbumPageState();
@@ -223,7 +216,7 @@ class ViewerPage extends StatelessWidget {
   final Medium medium;
 
   /// The constructor of ViewerPage
-  ViewerPage(Medium medium) : medium = medium;
+  const ViewerPage(this.medium, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -250,9 +243,7 @@ class ViewerPage extends StatelessWidget {
                     image: PhotoProvider(mediumId: medium.id),
                   ),
                 )
-              : VideoProvider(
-                  mediumId: medium.id,
-                ),
+              : VideoProvider(mediumId: medium.id),
         ),
       ),
     );
@@ -265,12 +256,10 @@ class VideoProvider extends StatefulWidget {
   final String mediumId;
 
   /// The constructor of VideoProvider
-  const VideoProvider({
-    required this.mediumId,
-  });
+  const VideoProvider({super.key, required this.mediumId});
 
   @override
-  _VideoProviderState createState() => _VideoProviderState();
+  State<VideoProvider> createState() => _VideoProviderState();
 }
 
 class _VideoProviderState extends State<VideoProvider> {
@@ -294,7 +283,7 @@ class _VideoProviderState extends State<VideoProvider> {
         setState(() {});
       });
     } catch (e) {
-      print("Failed : $e");
+      debugPrint('Failed to load video: $e');
     }
   }
 

@@ -1,4 +1,4 @@
-part of '../../photo_gallery.dart';
+part of '../../photo_gallery_gdx_plus.dart';
 
 /// Fetches the given medium thumbnail from the gallery.
 class ThumbnailProvider extends ImageProvider<ThumbnailProvider> {
@@ -54,7 +54,7 @@ class ThumbnailProvider extends ImageProvider<ThumbnailProvider> {
       buffer = await ui.ImmutableBuffer.fromUint8List(Uint8List.fromList(data));
     } catch (e) {
       buffer = await ui.ImmutableBuffer.fromAsset(
-        "packages/photo_gallery/images/grey.bmp",
+        "packages/photo_gallery_gdx_plus/images/grey.bmp",
       );
     }
     return decode(buffer);
@@ -77,13 +77,8 @@ class ThumbnailProvider extends ImageProvider<ThumbnailProvider> {
   }
 
   @override
-  int get hashCode => Object.hash(
-        mediumId,
-        mediumType,
-        height,
-        width,
-        highQuality,
-      );
+  int get hashCode =>
+      Object.hash(mediumId, mediumType, height, width, highQuality);
 
   @override
   String toString() => '$runtimeType("$mediumId")';

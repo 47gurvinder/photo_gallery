@@ -1,4 +1,4 @@
-part of '../../photo_gallery.dart';
+part of '../../photo_gallery_gdx_plus.dart';
 
 /// A medium in the gallery.
 ///
@@ -43,22 +43,22 @@ class Medium {
 
   /// Creates a medium from platform channel protocol.
   Medium.fromJson(dynamic json)
-      : id = json["id"],
-        filename = json["filename"],
-        title = json["title"],
-        mediumType = jsonToMediumType(json["mediumType"]),
-        width = json["width"],
-        height = json["height"],
-        size = json["size"],
-        orientation = json["orientation"],
-        mimeType = json["mimeType"],
-        duration = json['duration'] ?? 0,
-        creationDate = json['creationDate'] != null
-            ? DateTime.fromMillisecondsSinceEpoch(json['creationDate'])
-            : null,
-        modifiedDate = json['modifiedDate'] != null
-            ? DateTime.fromMillisecondsSinceEpoch(json['modifiedDate'])
-            : null;
+    : id = json["id"],
+      filename = json["filename"],
+      title = json["title"],
+      mediumType = jsonToMediumType(json["mediumType"]),
+      width = json["width"],
+      height = json["height"],
+      size = json["size"],
+      orientation = json["orientation"],
+      mimeType = json["mimeType"],
+      duration = json['duration'] ?? 0,
+      creationDate = json['creationDate'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(json['creationDate'])
+          : null,
+      modifiedDate = json['modifiedDate'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(json['modifiedDate'])
+          : null;
 
   /// Get a JPEG thumbnail's data for this medium.
   Future<List<int>> getThumbnail({
@@ -77,10 +77,7 @@ class Medium {
 
   /// Get the original file.
   Future<File> getFile() {
-    return PhotoGallery.getFile(
-      mediumId: id,
-      mediumType: mediumType,
-    );
+    return PhotoGallery.getFile(mediumId: id, mediumType: mediumType);
   }
 
   @override

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:photo_gallery/photo_gallery.dart';
+import 'package:photo_gallery_gdx_plus/photo_gallery_gdx_plus.dart';
 
 class Generator {
   static dynamic generateAlbumsJson({
@@ -21,7 +21,7 @@ class Generator {
         "newest": newest,
         "name": "AlbumName",
         "count": 5,
-      }
+      },
     ];
   }
 
@@ -29,9 +29,10 @@ class Generator {
     MediumType? mediumType,
     bool newest = true,
   }) {
-    return Generator.generateAlbumsJson(mediumType: mediumType, newest: newest)
-        .map<Album>((x) => Album.fromJson(x, mediumType, newest))
-        .toList();
+    return Generator.generateAlbumsJson(
+      mediumType: mediumType,
+      newest: newest,
+    ).map<Album>((x) => Album.fromJson(x, mediumType, newest)).toList();
   }
 
   static dynamic generateMediaPageJson({
@@ -45,17 +46,13 @@ class Generator {
     var items = [];
     int index = skip;
     while (index < skip + take) {
-      items.add(generateMediaJson(
-        mediumId: index.toString(),
-        mediumType: mediumType,
-      ));
+      items.add(
+        generateMediaJson(mediumId: index.toString(), mediumType: mediumType),
+      );
       index++;
     }
 
-    return {
-      "start": skip,
-      "items": items,
-    };
+    return {"start": skip, "items": items};
   }
 
   static dynamic generateMediaJson({
@@ -105,9 +102,7 @@ class Generator {
     return [1, 2, 3, 4, 5, 6, 7, 8, 9];
   }
 
-  static List<int> generateMockAlbumThumbnail({
-    required String albumId,
-  }) {
+  static List<int> generateMockAlbumThumbnail({required String albumId}) {
     return [1, 2, 3, 4, 5, 6, 7, 8, 9];
   }
 
@@ -118,10 +113,7 @@ class Generator {
     return "/path/to/file";
   }
 
-  static File generateFile({
-    required String mediumId,
-    MediumType? mediumType,
-  }) {
+  static File generateFile({required String mediumId, MediumType? mediumType}) {
     return File(generateFilePath(mediumId: mediumId, mediumType: mediumType));
   }
 }

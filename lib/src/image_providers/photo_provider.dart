@@ -1,12 +1,9 @@
-part of '../../photo_gallery.dart';
+part of '../../photo_gallery_gdx_plus.dart';
 
 /// Fetches the given image from the gallery.
 class PhotoProvider extends ImageProvider<PhotoProvider> {
   /// ImageProvider of photo
-  PhotoProvider({
-    required this.mediumId,
-    this.mimeType,
-  });
+  PhotoProvider({required this.mediumId, this.mimeType});
 
   /// Medium id
   final String mediumId;
@@ -40,7 +37,7 @@ class PhotoProvider extends ImageProvider<PhotoProvider> {
       buffer = await ui.ImmutableBuffer.fromFilePath(file.path);
     } catch (e) {
       buffer = await ui.ImmutableBuffer.fromAsset(
-        "packages/photo_gallery/images/grey.bmp",
+        "packages/photo_gallery_gdx_plus/images/grey.bmp",
       );
     }
     return decode(buffer);

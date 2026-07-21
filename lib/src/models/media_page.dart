@@ -1,4 +1,4 @@
-part of '../../photo_gallery.dart';
+part of '../../photo_gallery_gdx_plus.dart';
 
 /// A list of media with pagination support.
 @immutable
@@ -23,8 +23,8 @@ class MediaPage {
 
   /// Creates a range of media from platform channel protocol.
   MediaPage.fromJson(this.album, dynamic json, {this.lightWeight})
-      : start = json['start'] ?? 0,
-        items = json['items'].map<Medium>((x) => Medium.fromJson(x)).toList();
+    : start = json['start'] ?? 0,
+      items = json['items'].map<Medium>((x) => Medium.fromJson(x)).toList();
 
   /// Gets the next page of media in the album.
   Future<MediaPage> nextPage() {

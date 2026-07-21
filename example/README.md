@@ -1,14 +1,18 @@
-# photo_gallery_example
+# photo_gallery_gdx_plus example
 
-Demonstrates how to use the photo_gallery plugin.
+This application demonstrates how to use `photo_gallery_gdx_plus` to request gallery permission, list native albums and media, display image and video thumbnails, open media, and delete an item on Android and iOS.
 
-Use photo_gallery plugin to list images and videos from mobile native gallery. support both iOS and Android (with the help of image_picker plugin).
+From this directory, install dependencies and run the app on a connected device or simulator:
 
-## Install
-```shell script
+```shell
 flutter pub get
-```
-## Run
-```shell script
 flutter run
 ```
+
+The example uses the package from the parent directory through a path dependency. For an application using the published package, depend on `photo_gallery_gdx_plus` and import:
+
+```dart
+import 'package:photo_gallery_gdx_plus/photo_gallery_gdx_plus.dart';
+```
+
+Before running, review the platform permission setup in the [package README](https://github.com/47gurvinder/photo_gallery#installation).
