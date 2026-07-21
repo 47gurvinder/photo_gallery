@@ -1,3 +1,8 @@
+# 2.3.1
+
+- Lower the supported toolchain floor to Flutter 3.41.1 and Dart 3.11.0.
+- Use Android Gradle Plugin 8.11.1, Gradle 8.13, and Kotlin 2.2.20 for Android compatibility with Flutter 3.41.x while retaining compile SDK 36 and Java 17 support.
+
 # 2.3.0
 
 - Publish the maintained continuation under the `photo_gallery_gdx_plus` package name. Applications must update their dependency and import path.

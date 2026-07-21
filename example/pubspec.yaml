@@ -7,8 +7,8 @@ version: 1.0.0+1
 publish_to: none
 
 environment:
-  sdk: ">=3.12.0 <4.0.0"
-  flutter: ">=3.44.0"
+  sdk: ">=3.11.0 <4.0.0"
+  flutter: ">=3.41.1"
 
 dependencies:
   flutter:
@@ -16,7 +16,7 @@ dependencies:
 
   photo_gallery_gdx_plus:
     # When depending on this package from a real application you should use:
-    #   photo_gallery_gdx_plus: ^2.3.0
+    #   photo_gallery_gdx_plus: ^2.3.1
     # See https://dart.dev/tools/pub/dependencies#version-constraints
     # The example app is bundled with the plugin so we use a path dependency on
     # the parent directory to use the current plugin's version. 
@@ -27,7 +27,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   transparent_image: ^2.0.1
   permission_handler: ^12.0.3
-  video_player: ^2.13.0
+  video_player: ^2.11.1
 
 dev_dependencies:
   flutter_test:

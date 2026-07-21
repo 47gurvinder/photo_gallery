@@ -11,8 +11,8 @@ The package supports album discovery, paginated media queries, image and video m
 
 | Component | Supported version |
 | --- | --- |
-| Dart | `>=3.12.0 <4.0.0` |
-| Flutter | `>=3.44.0` |
+| Dart | `>=3.11.0 <4.0.0` |
+| Flutter | `>=3.41.1` |
 | Android | API 24+; compile SDK 36 |
 | iOS | 13.0+ |
 
@@ -32,7 +32,7 @@ Or add it manually to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  photo_gallery_gdx_plus: ^2.3.0
+  photo_gallery_gdx_plus: ^2.3.1
 ```
 
 Import the public library:
