@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'photo_gallery_gdx_plus'
-  s.version          = '2.3.1'
+  s.version          = '2.3.2'
   s.summary          = 'Retrieve images and videos from native mobile galleries.'
   s.description      = <<-DESC
 A community-maintained Flutter plugin that retrieves images and videos from native Android and iOS galleries.
@@ -13,7 +13,7 @@ A community-maintained Flutter plugin that retrieves images and videos from nati
   s.license          = { :file => '../LICENSE' }
   s.author           = 'Wenqi Li and contributors'
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*'
+  s.source_files     = 'photo_gallery_gdx_plus/Sources/photo_gallery_gdx_plus/**/*'
   s.dependency 'Flutter'
   s.platform = :ios, '13.0'
 

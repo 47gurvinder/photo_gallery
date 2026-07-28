@@ -1,3 +1,7 @@
+# 2.3.2
+
+- Add Swift Package Manager support for the iOS plugin while retaining CocoaPods compatibility.
+
 # 2.3.1
 
 - Lower the supported toolchain floor to Flutter 3.41.1 and Dart 3.11.0.

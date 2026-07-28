@@ -18,7 +18,7 @@ The package supports album discovery, paginated media queries, image and video m
 
 Only Android and iOS are registered as plugin platforms. Web, macOS, Windows, and Linux are not supported.
 
-iOS integration currently uses CocoaPods. Native Swift Package Manager support is not yet available for this fork.
+iOS integration supports both CocoaPods and Swift Package Manager.
 
 ## Installation
 
@@ -32,7 +32,7 @@ Or add it manually to `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  photo_gallery_gdx_plus: ^2.3.1
+  photo_gallery_gdx_plus: ^2.3.2
 ```
 
 Import the public library:
